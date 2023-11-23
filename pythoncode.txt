@@ -1,0 +1,144 @@
+import pandas as pd
+data = pd.read_csv("E:/weatherAUS.csv")
+data
+
+data.drop(['Date','Location','Pressure9am', 'Pressure3pm', 'WindGustDir', 'WindDir9am', 'WindDir3pm', 'WindGustSpeed', 'Temp9am', 'Temp3pm'], axis='columns', inplace = True)
+
+data
+
+data.columns[data.isna().any()]
+
+data.dropna(subset=['MinTemp', 'MaxTemp', 'Rainfall', 'Evaporation', 'Sunshine',
+       'WindSpeed9am', 'WindSpeed3pm', 'Humidity9am', 'Humidity3pm',
+       'Cloud9am', 'Cloud3pm', 'RainToday', 'RainTomorrow'], inplace=True)
+print(data)
+
+inputs = data.drop(['RainToday','RainTomorrow'], axis='columns')
+inputs
+
+
+target = data[['RainToday', 'RainTomorrow']]
+
+target
+
+
+
+target['RainToday'] = target['RainToday'].map({'No': 0, 'Yes': 1})
+target['RainTomorrow'] = target['RainTomorrow'].map({'No': 0, 'Yes': 1})
+target
+
+from sklearn.model_selection import train_test_split
+
+# Split the data into training and testing sets with a test size of 30%
+x_train, x_test, y_train, y_test = train_test_split(inputs, target, test_size=0.3)
+
+# Access the x_test variable to see the resulting test set
+print(x_test)
+print(x_train)
+
+print(inputs.shape)
+print(target.shape)
+
+y_train
+
+
+# Naive Bayes implementation
+# Count the occurrences of each class in the target
+total_samples = len(y_train)
+total_rain_today = y_train['RainToday'].sum()
+total_no_rain_today = total_samples - total_rain_today
+
+total_rain_tomorrow = y_train['RainTomorrow'].sum()
+total_no_rain_tomorrow = total_samples - total_rain_tomorrow
+
+# Calculate class probabilities
+prob_rain_today = total_rain_today / total_samples
+prob_no_rain_today = total_no_rain_today / total_samples
+
+prob_rain_tomorrow = total_rain_tomorrow / total_samples
+prob_no_rain_tomorrow = total_no_rain_tomorrow / total_samples
+
+# Separate the training data based on the target classes
+rain_today_data = x_train[y_train['RainToday'] == 1]
+no_rain_today_data = x_train[y_train['RainToday'] == 0]
+
+rain_tomorrow_data = x_train[y_train['RainTomorrow'] == 1]
+no_rain_tomorrow_data = x_train[y_train['RainTomorrow'] == 0]
+
+# Calculate conditional probabilities for RainToday
+prob_rain_today_given_data = len(rain_today_data) / total_samples
+prob_no_rain_today_given_data = len(no_rain_today_data) / total_samples
+
+# Calculate conditional probabilities for RainTomorrow
+prob_rain_tomorrow_given_data = len(rain_tomorrow_data) / total_samples
+prob_no_rain_tomorrow_given_data = len(no_rain_tomorrow_data) / total_samples
+
+# Function to predict using Naive Bayes
+def predict_naive_bayes(sample):
+    # Calculate the likelihood of the sample belonging to each class given the data
+    prob_rain_today_given_sample = prob_rain_today_given_data
+    prob_no_rain_today_given_sample = prob_no_rain_today_given_data
+
+    prob_rain_tomorrow_given_sample = prob_rain_tomorrow_given_data
+    prob_no_rain_tomorrow_given_sample = prob_no_rain_tomorrow_given_data
+
+    for feature, value in sample.items():
+        prob_rain_today_given_sample *= len(rain_today_data[rain_today_data[feature] == value]) / total_rain_today
+        prob_no_rain_today_given_sample *= len(no_rain_today_data[no_rain_today_data[feature] == value]) / total_no_rain_today
+
+        prob_rain_tomorrow_given_sample *= len(rain_tomorrow_data[rain_tomorrow_data[feature] == value]) / total_rain_tomorrow
+        prob_no_rain_tomorrow_given_sample *= len(no_rain_tomorrow_data[no_rain_tomorrow_data[feature] == value]) / total_no_rain_tomorrow
+
+    # Calculate the final probabilities
+    prob_rain_today_given_sample *= prob_rain_today
+    prob_no_rain_today_given_sample *= prob_no_rain_today
+
+    prob_rain_tomorrow_given_sample *= prob_rain_tomorrow
+    prob_no_rain_tomorrow_given_sample *= prob_no_rain_tomorrow
+
+    # Make predictions based on the class with the highest probability
+    if prob_rain_today_given_sample > prob_no_rain_today_given_sample:
+        return 1  # RainToday is predicted
+    else:
+        if prob_rain_tomorrow_given_sample > prob_no_rain_tomorrow_given_sample:
+            return 1  # RainTomorrow is predicted
+        else:
+            return 0  # No rain is predicted
+
+# Make predictions on the test set
+predictions = []
+for index, row in x_test.iterrows():
+    prediction = predict_naive_bayes(row)
+    predictions.append(prediction)
+
+# Print the predictions
+print(predictions)
+
+
+# Example of a new data point for testing
+new_data_point = {
+    'MinTemp': 18.3,
+    'MaxTemp': 27.1,
+    'Rainfall':1.4,
+    'Evaporation': 2.4,
+    'Sunshine': 5.3,
+    'WindSpeed9am': 6,
+    'WindSpeed3pm': 22,
+    'Humidity9am': 76,
+    'Humidity3pm': 73,
+    'Cloud9am': 6.0,
+    'Cloud3pm': 6.0,
+}
+
+# Use the predict_naive_bayes function to make a prediction
+prediction = predict_naive_bayes(new_data_point)
+print(prediction)
+
+from sklearn.metrics import accuracy_score
+ 
+# Convert the list of predictions to a pandas Series for easier comparison
+predicted_series = pd.Series(predictions, index=y_test.index)
+ 
+# Calculate accuracy
+accuracy = accuracy_score(y_test['RainTomorrow'], predicted_series)
+print(f'Accuracy: {accuracy * 100:.2f}%')
